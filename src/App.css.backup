@@ -1,0 +1,338 @@
+/* ================================
+   PATIENT DASHBOARD
+================================ */
+
+.patient-page {
+  min-height: 100vh;
+  background: #f6f8f7;
+  color: #202622;
+  font-family: Inter, Arial, sans-serif;
+}
+
+.patient-header {
+  background: #ffffff;
+  padding: 20px 6%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e4e9e6;
+}
+
+.patient-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 22px;
+}
+
+.patient-brand-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #263f35;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.patient-header p {
+  margin: 5px 0 0 46px;
+  color: #748078;
+  font-size: 14px;
+}
+
+.patient-logout {
+  border: 1px solid #dfe5e1;
+  background: white;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.patient-content {
+  width: min(700px, 90%);
+  margin: auto;
+  padding: 35px 0 50px;
+}
+
+.patient-welcome h1 {
+  margin: 0;
+  font-size: 30px;
+}
+
+.patient-welcome p {
+  color: #748078;
+  margin-top: 8px;
+}
+
+/* I'M OK */
+
+.checkin-card {
+  background: white;
+  border-radius: 20px;
+  padding: 28px;
+  margin-top: 25px;
+  text-align: center;
+  border: 1px solid #e1e8e3;
+}
+
+.ok-button {
+  width: 100%;
+  min-height: 120px;
+  border: none;
+  border-radius: 18px;
+  background: #e9f7ed;
+  color: #23753d;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: 0.2s;
+}
+
+.ok-button:hover {
+  transform: translateY(-2px);
+  background: #dff3e5;
+}
+
+.ok-button span {
+  font-size: 30px;
+}
+
+.ok-button strong {
+  font-size: 25px;
+}
+
+.checkin-description {
+  color: #748078;
+  margin: 15px 0 0;
+}
+
+.checkin-success {
+  width: 65px;
+  height: 65px;
+  margin: auto;
+  border-radius: 50%;
+  background: #e9f7ed;
+  color: #23753d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: bold;
+}
+
+/* MEDICATIONS */
+
+.patient-section {
+  margin-top: 28px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.section-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.section-icon {
+  font-size: 25px;
+}
+
+.medicine-count {
+  color: #748078;
+  font-size: 14px;
+}
+
+.medicine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.medicine-card {
+  background: white;
+  border: 1px solid #e1e8e3;
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.medicine-taken {
+  opacity: 0.65;
+}
+
+.medicine-time {
+  min-width: 65px;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.medicine-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.medicine-info span {
+  color: #748078;
+  font-size: 13px;
+}
+
+.medicine-button {
+  border: 1px solid #263f35;
+  color: #263f35;
+  background: white;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.medicine-taken .medicine-button {
+  background: #e9f7ed;
+  border-color: #e9f7ed;
+  color: #23753d;
+}
+
+/* SOS */
+
+.sos-section {
+  margin-top: 30px;
+}
+
+.patient-sos {
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  background: #b92323;
+  color: white;
+  padding: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+.patient-sos > span {
+  font-size: 30px;
+}
+
+.patient-sos div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.patient-sos strong {
+  font-size: 19px;
+}
+
+.patient-sos small {
+  margin-top: 3px;
+  opacity: 0.85;
+}
+
+/* LAST CHECK-IN */
+
+.last-checkin {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  color: #748078;
+  font-size: 13px;
+}
+
+/* SOS MODAL */
+
+.sos-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+
+.sos-modal {
+  background: white;
+  width: min(380px, 100%);
+  border-radius: 20px;
+  padding: 30px;
+  text-align: center;
+}
+
+.sos-modal-icon {
+  font-size: 45px;
+}
+
+.sos-modal h2 {
+  margin-bottom: 8px;
+}
+
+.sos-modal p {
+  color: #748078;
+}
+
+.confirm-sos,
+.cancel-sos {
+  width: 100%;
+  padding: 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.confirm-sos {
+  border: none;
+  background: #b92323;
+  color: white;
+}
+
+.cancel-sos {
+  border: 1px solid #dfe5e1;
+  background: white;
+}
+
+/* MOBILE */
+
+@media (max-width: 600px) {
+  .patient-content {
+    width: 92%;
+    padding-top: 25px;
+  }
+
+  .medicine-card {
+    flex-wrap: wrap;
+  }
+
+  .medicine-button {
+    width: 100%;
+  }
+
+  .patient-welcome h1 {
+    font-size: 26px;
+  }
+}
