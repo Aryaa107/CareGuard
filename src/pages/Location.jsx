@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, Icon, Modal, Toggle } from "../components/UI";
 import { useCare } from "../context/careContext";
+import { locationHistory, safeZones } from "../data/careData";
 
 const buildings = [
   { x: 18, y: 30, w: 16, h: 20, label: "Block A" },
@@ -24,7 +25,7 @@ const buildings = [
 const zoneCoords = { 1: [51, 31], 2: [34, 70], 3: [77, 49] };
 
 export default function Location() {
-  const { settings, updateSetting, pushToast, live, safeZones, locationHistory } = useCare();
+  const { settings, updateSetting, pushToast, live } = useCare();
   const [zoneOpen, setZoneOpen] = useState(false);
   const [sharing, setSharing] = useState(true);
 

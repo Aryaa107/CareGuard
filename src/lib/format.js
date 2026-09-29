@@ -2,7 +2,7 @@
  * Display formatting helpers. Locale-aware so the app does not assume any single
  * country for phone numbers, numbers or currency.
  */
-import { resolveCountry } from "../data/countries.js";
+import { resolveCountry } from "../data/countries";
 
 /**
  * Build a dial code catalogue for phone inputs. Countries sharing a dial code

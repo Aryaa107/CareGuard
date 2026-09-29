@@ -14,6 +14,7 @@ import {
 import { BarChart, DonutChart, RingGauge } from "../components/Charts";
 import { Badge, Button, Card, Modal, ProgressBar, Segmented } from "../components/UI";
 import { useCare } from "../context/careContext";
+import { adherence } from "../data/careData";
 
 const inventory = [
   { name: "Metformin 500mg", left: 18, total: 30, refill: "In 9 days" },
@@ -29,15 +30,7 @@ const interactions = [
 ];
 
 export default function Medications() {
-  const {
-    medications,
-    medsTaken,
-    adherencePct,
-    markMedication,
-    nextMed,
-    pushToast,
-    adherence,
-  } = useCare();
+  const { medications, medsTaken, adherencePct, markMedication, nextMed, pushToast } = useCare();
   const [tab, setTab] = useState("today");
   const [addOpen, setAddOpen] = useState(false);
 

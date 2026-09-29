@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { DEMO_LOGIN_HINTS } from "../services/authService";
 import "./Login.css";
 
 export default function Login({
-  onSubmit,
+  onLogin,
   onCreateAccount,
-  submitting = false,
 }) {
   const [role, setRole] = useState(null);
   const [email, setEmail] = useState("");
@@ -13,29 +11,35 @@ export default function Login({
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  /* --------------------------------------------------- seeded demo accounts */
-
-  // The demo passwords come from the same fixture the server seeds from, so
-  // these always match what is actually in the database.
-  const hints = role === "patient"
-    ? DEMO_LOGIN_HINTS.filter((h) => h.role === "elderly")
-    : DEMO_LOGIN_HINTS.filter((h) => h.role === "caregiver");
-
-  const applyHint = (hint) => {
-    setEmail(hint.email);
-    setPassword(hint.password);
-    setError("");
-  };
-
-  const handleLogin = async (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
     setError("");
 
-    try {
-      await onSubmit(email.trim(), password);
-    } catch (err) {
-      setError(err?.message || "Could not sign in. Please try again.");
+    const caregiverEmail = "caregiver@careguard.com";
+    const patientEmail = "patient@careguard.com";
+    const demoPassword = "careguard";
+
+    if (
+      role === "caregiver" &&
+      email.trim().toLowerCase() === caregiverEmail &&
+      password === demoPassword
+    ) {
+      onLogin("caregiver");
+      return;
     }
+
+    if (
+      role === "patient" &&
+      email.trim().toLowerCase() === patientEmail &&
+      password === demoPassword
+    ) {
+      onLogin("patient");
+      return;
+    }
+
+    setError(
+      `Invalid ${role === "patient" ? "patient" : "caregiver"} email or password.`
+    );
   };
 
   const goBack = () => {
@@ -160,7 +164,6 @@ export default function Login({
 
         <div className="auth-brand">
           <div className="auth-logo">❤</div>
-
           <h1>CareGuard</h1>
         </div>
 
@@ -175,22 +178,6 @@ export default function Login({
             ? "Access your care management dashboard."
             : "Access your simple personal care dashboard."}
         </p>
-
-        {hints.length > 0 && (
-          <div className="demo-accounts">
-            {hints.map((hint) => (
-              <button
-                key={hint.email}
-                type="button"
-                className="demo-account"
-                onClick={() => applyHint(hint)}
-              >
-                <strong>{hint.name}</strong>
-                <em>{hint.email}</em>
-              </button>
-            ))}
-          </div>
-        )}
 
         <form onSubmit={handleLogin}>
 
@@ -257,9 +244,8 @@ export default function Login({
           <button
             type="submit"
             className="login-button"
-            disabled={submitting}
           >
-            {submitting ? "Signing in…" : "Sign In"}
+            Sign In
           </button>
 
         </form>
@@ -272,7 +258,15 @@ export default function Login({
         </button>
 
         <p className="demo-note">
-          Demo accounts above are seeded by <code>npm run seed</code>.
+          Demo account:{" "}
+          <strong>
+            {role === "caregiver"
+              ? "caregiver@careguard.com"
+              : "patient@careguard.com"}
+          </strong>
+
+          <br />
+
           Password: <strong>careguard</strong>
         </p>
 

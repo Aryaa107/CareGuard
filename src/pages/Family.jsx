@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, Modal, ProgressBar } from "../components/UI";
 import { useCare } from "../context/careContext";
-import { addCaregiver } from "../services/dataService";
+import { familyMembers } from "../data/careData";
 
 const sharedTasks = [
   { id: 1, t: "Order Metformin refill", who: "Aryaa", due: "Today", done: false },
@@ -39,10 +39,8 @@ const perms = [
 ];
 
 export default function Family() {
-  const { pushToast, careTeam, activeProfileId, refresh } = useCare();
+  const { pushToast } = useCare();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [invite, setInvite] = useState({ name: "", phone: "", role: "Co-caregiver" });
-  const [inviting, setInviting] = useState(false);
   const [tasks, setTasks] = useState(sharedTasks);
 
   const toggleTask = (id) =>
@@ -50,37 +48,12 @@ export default function Family() {
 
   const openRate = 78;
 
-  /** Writes the new member through the API, then reloads the bundle. */
-  const sendInvite = async () => {
-    if (!invite.name.trim()) {
-      pushToast("Enter a name to send an invite", "danger");
-      return;
-    }
-    setInviting(true);
-    try {
-      await addCaregiver(activeProfileId, {
-        name: invite.name.trim(),
-        phone: invite.phone.trim(),
-        role: invite.role,
-        relation: "Family",
-      });
-      await refresh();
-      setInviteOpen(false);
-      setInvite({ name: "", phone: "", role: "Co-caregiver" });
-      pushToast("Invitation sent", "good");
-    } catch (err) {
-      pushToast(err?.message || "Could not send the invite", "danger");
-    } finally {
-      setInviting(false);
-    }
-  };
-
   return (
     <div className="page">
       <div className="grid main-grid">
         <Card
           title="Care Circle"
-          subtitle={`${careTeam.length} member${careTeam.length === 1 ? "" : "s"} with access`}
+          subtitle="4 members with access"
           icon={<Users size={19} />}
           span={2}
           action={
@@ -90,7 +63,7 @@ export default function Family() {
           }
         >
           <div className="member-grid">
-            {careTeam.map((m) => (
+            {familyMembers.map((m) => (
               <div className="member-card" key={m.id}>
                 <div className="mc-top">
                   <span className="mc-avatar">{m.avatar}</span>
@@ -265,10 +238,12 @@ export default function Family() {
             </Button>
             <Button
               variant="primary"
-              onClick={sendInvite}
-              disabled={inviting}
+              onClick={() => {
+                setInviteOpen(false);
+                pushToast("Invitation sent", "good");
+              }}
             >
-              {inviting ? "Sending…" : "Send invite"}
+              Send invite
             </Button>
           </>
         }
@@ -276,30 +251,17 @@ export default function Family() {
         <div className="zone-form">
           <label>
             Full name
-            <input
-              value={invite.name}
-              onChange={(e) => setInvite((v) => ({ ...v, name: e.target.value }))}
-              placeholder="Meera Menon"
-            />
+            <input defaultValue="Meera Menon" />
           </label>
           <label>
             Mobile number
-            <input
-              value={invite.phone}
-              onChange={(e) => setInvite((v) => ({ ...v, phone: e.target.value }))}
-              placeholder="+91 98450 00000"
-            />
+            <input defaultValue="+91 98450 00000" />
           </label>
           <label>
             Access level
             <div className="radius-opts">
-              {["Viewer", "Co-caregiver", "Primary"].map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  className={invite.role === r ? "on" : ""}
-                  onClick={() => setInvite((v) => ({ ...v, role: r }))}
-                >
+              {["Viewer", "Co-caregiver", "Primary"].map((r, i) => (
+                <button key={r} className={i === 1 ? "on" : ""}>
                   {r}
                 </button>
               ))}

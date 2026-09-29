@@ -1,22 +1,32 @@
 /**
- * AUTHENTICATION SERVICE — talks to the CareGuard API.
+ * MOCK AUTHENTICATION SERVICE — prototype only.
  *
- * Passwords are hashed with bcrypt on the server and the plaintext never
- * leaves this module. The browser only ever holds an opaque session token
- * (see storageService.js), so there is no account database in the client to
- * tamper with.
- *
- * The exported signatures are unchanged from the old localStorage version, so
- * the UI does not care that the backing store moved to MongoDB.
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ THIS IS NOT REAL SECURITY. Do not ship it.                              │
+ * │                                                                         │
+ * │ There is no server: accounts live in localStorage and passwords are     │
+ * │ stored as a salted SHA-256 digest (lib/mockPassword.js) purely so the   │
+ * │ browser never writes a plaintext password to disk. A digest is not a    │
+ * │ KDF — it is fast and unsalted across accounts, which is exactly why a   │
+ * │ real deployment must verify credentials server-side.                    │
+ * │                                                                         │
+ * │ Production swap (Part 2): replace the bodies of login/register/restore  │
+ * │ with calls to FastAPI (OAuth2 password flow or JWT) or Firebase Auth.   │
+ * │ The exported signatures are what the UI depends on, so they stay.       │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
-import { get, post, patch, ApiError } from "../lib/api";
-import { getSession, saveSession, clearSession } from "./storageService";
-import { DEMO_USERS, DEMO_CREDENTIALS } from "../data/demoProfiles.js";
+import { readJSON, writeJSON, KEYS } from "./storageService";
+import { hashPassword, verifyPassword, makeSalt } from "../lib/mockPassword";
+import { DEMO_USERS, DEMO_CREDENTIALS } from "../data/demoProfiles";
+import { resolveCountry } from "../data/countries";
 
-/**
- * A form-facing error. `field` targets a specific input, matching what the
- * form components already expect from the old mock service.
- */
+/** Mock bearer token. A real backend returns a signed JWT here instead. */
+function mintToken(userId) {
+  return `mock.${userId}.${Date.now().toString(36)}`;
+}
+
+const SESSION_TTL_MS = 1000 * 60 * 60 * 12; // 12h, mirroring a real short-lived token
+
 export class AuthError extends Error {
   constructor(message, field = null) {
     super(message);
@@ -25,27 +35,125 @@ export class AuthError extends Error {
   }
 }
 
-/** Re-shape an API failure into the error the login/register forms expect. */
-function toAuthError(err) {
-  if (err instanceof AuthError) return err;
-  return new AuthError(err?.message || "Something went wrong", err?.field ?? null);
+/* --------------------------------------------------------------- user store */
+
+let seeded = null;
+
+/** Records shaped as the intended `users` table. Demo rows are flagged. */
+function userTable() {
+  if (seeded) return seeded;
+  const stored = readJSON(KEYS.users, null);
+  if (Array.isArray(stored) && stored.length) {
+    seeded = stored;
+    return seeded;
+  }
+  seeded = [];
+  writeJSON(KEYS.users, seeded);
+  return seeded;
 }
 
-/* --------------------------------------------------------------- validation */
+/**
+ * Seed the labelled demo accounts on first run. Passwords are hashed at seed
+ * time, so the plaintext only ever exists in source, never in storage.
+ */
+export async function seedDemoUsers(force = false) {
+  const table = userTable();
+  const alreadySeeded = table.some((u) => u.demo);
+  if (alreadySeeded && !force) return table;
+
+  const byEmail = DEMO_CREDENTIALS.reduce((acc, c) => {
+    acc[c.email.toLowerCase()] = c.password;
+    return acc;
+  }, {});
+
+  const fresh = [];
+  for (const u of DEMO_USERS) {
+    const password = byEmail[u.email];
+    if (!password) continue;
+    if (table.some((t) => t.email === u.email)) continue;
+    const salt = makeSalt();
+    fresh.push({
+      ...u,
+      demo: true,
+      createdAt: new Date().toISOString(),
+      salt,
+      passwordHash: await hashPassword(password, salt),
+    });
+  }
+
+  seeded = [...table, ...fresh];
+  writeJSON(KEYS.users, seeded);
+  return seeded;
+}
+
+function findStoredUser(email) {
+  const needle = String(email || "").trim().toLowerCase();
+  return userTable().find((u) => u.email.toLowerCase() === needle) || null;
+}
+
+function persistUser(user) {
+  const table = userTable();
+  const idx = table.findIndex((u) => u.id === user.id);
+  if (idx >= 0) table[idx] = user;
+  else table.push(user);
+  writeJSON(KEYS.users, table);
+}
+
+/** Strip secrets before anything reaches React state. */
+export function toPublicUser(user) {
+  if (!user) return null;
+  const { passwordHash, salt, ...rest } = user;
+  return rest;
+}
+
+/* ------------------------------------------------------------------ session */
+
+function buildSession(user) {
+  const now = Date.now();
+  return {
+    token: mintToken(user.id),
+    userId: user.id,
+    issuedAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
+    mock: true,
+  };
+}
+
+function saveSession(session) {
+  writeJSON(KEYS.session, session);
+}
+
+/**
+ * Restore a session on boot. Returns { user, session } or null.
+ * A real client would refresh an expired JWT here instead of dropping it.
+ */
+export async function restoreSession() {
+  await seedDemoUsers();
+  const session = readJSON(KEYS.session, null);
+  if (!session?.userId) return null;
+  if (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now()) {
+    writeJSON(KEYS.session, null);
+    return null;
+  }
+  const user = userTable().find((u) => u.id === session.userId);
+  if (!user) return null;
+  return { user: toPublicUser(user), session };
+}
+
+/* ------------------------------------------------------------------ actions */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-/**
- * Client-side checks mirror the server's so the user gets immediate feedback.
- * The server enforces the same rules regardless — this is convenience, not
- * security.
- */
 export function validateEmail(email) {
   if (!email?.trim()) return "Email is required";
   if (!EMAIL_RE.test(email.trim())) return "Enter a valid email address";
   return null;
 }
 
+/**
+ * Deliberately simple rules — a real deployment enforces these server-side and
+ * feeds a strength meter from a vetted policy.
+ */
 export function validatePassword(password) {
   if (!password) return "Password is required";
   if (password.length < 8) return "Password must be at least 8 characters";
@@ -54,143 +162,114 @@ export function validatePassword(password) {
   return null;
 }
 
-/* ------------------------------------------------------------------ session */
-
-/**
- * Restore a session on boot.
- * Returns `{ user, session }` or null. The server is the authority: the token
- * is verified against the `sessions` collection, so a token that was revoked
- * or expired elsewhere does not come back.
- */
-export async function restoreSession() {
-  let result;
-  try {
-    result = await get("/auth/me");
-  } catch (err) {
-    // A server that is down should not look like "signed out" — but there is
-    // nothing useful to do here either, so drop to the sign-in screen.
-    if (err instanceof ApiError) clearSession();
-    return null;
-  }
-
-  if (!result?.user) {
-    clearSession();
-    return null;
-  }
-
-  // The stored session is the one that actually works; keep it.
-  if (result.session) saveSession(result.session);
-  return result;
-}
-
-/* ------------------------------------------------------------------ actions */
-
-/** Sign in. Throws AuthError with `field` set on validation failures. */
+/** MOCK login: verify against the local digest. Async to mirror a real call. */
 export async function login(email, password) {
   const emailProblem = validateEmail(email);
   if (emailProblem) throw new AuthError(emailProblem, "email");
   if (!password) throw new AuthError("Password is required", "password");
 
-  try {
-    const { user, session } = await post("/auth/login", { email, password });
-    saveSession(session);
-    return { user, session };
-  } catch (err) {
-    throw toAuthError(err);
-  }
+  await seedDemoUsers();
+  const user = findStoredUser(email);
+  // Identical message for unknown email and wrong password: no enumeration.
+  if (!user) throw new AuthError("Incorrect email or password", "password");
+
+  const ok = await verifyPassword(password, user.salt, user.passwordHash);
+  if (!ok) throw new AuthError("Incorrect email or password", "password");
+
+  const session = buildSession(user);
+  saveSession(session);
+  return { user: toPublicUser(user), session };
 }
 
 /**
- * Create an account. A new account starts with an empty care circle — no demo
- * health data is attached unless the caller explicitly opted into it.
+ * MOCK sign-up. Creates a local account with an EMPTY care circle — no fake
+ * health data is attached unless the caller explicitly asked for the labelled
+ * demo dataset (Part 6: demo data stays separate and clearly labelled).
  */
 export async function register(payload) {
-  const {
-    name,
-    email,
-    password,
-    confirmPassword,
-    country,
-    timezone,
-    locale,
-    phone,
-    role,
-    includeDemoData,
-  } = payload ?? {};
+  const { name, email, password, confirmPassword, country, timezone, locale, phone, role, includeDemoData } = payload;
 
   if (!name?.trim()) throw new AuthError("Your name is required", "name");
-
   const emailProblem = validateEmail(email);
   if (emailProblem) throw new AuthError(emailProblem, "email");
-
   const pwProblem = validatePassword(password);
   if (pwProblem) throw new AuthError(pwProblem, "password");
-
   if (confirmPassword !== undefined && confirmPassword !== password) {
     throw new AuthError("Passwords do not match", "confirmPassword");
   }
+  if (findStoredUser(email)) throw new AuthError("An account with this email already exists", "email");
 
-  try {
-    const { user, session } = await post("/auth/register", {
-      name,
-      email,
-      password,
-      confirmPassword,
-      country,
-      timezone,
-      locale,
-      phone,
-      role,
-      includeDemoData,
-    });
-    saveSession(session);
-    return { user, session };
-  } catch (err) {
-    throw toAuthError(err);
-  }
+  const resolved = resolveCountry(country);
+  const salt = makeSalt();
+  const user = {
+    id: `user-${Date.now().toString(36)}`,
+    name: name.trim(),
+    email: email.trim().toLowerCase(),
+    role: role === "elderly" ? "elderly" : "caregiver",
+    country: resolved.code,
+    timezone: timezone || resolved.timezone,
+    locale: locale || resolved.locale,
+    phone: phone?.trim() || "",
+    avatar: name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0].toUpperCase())
+      .join(""),
+    demo: false,
+    includeDemoData: Boolean(includeDemoData),
+    createdAt: new Date().toISOString(),
+    salt,
+    passwordHash: await hashPassword(password, salt),
+  };
+
+  persistUser(user);
+  const session = buildSession(user);
+  saveSession(session);
+  return { user: toPublicUser(user), session };
 }
 
-/** Sign out. Revokes the token server-side, then clears it locally. */
+/** Mock sign-out: drop the local session, leave account data in place. */
 export async function logout() {
-  try {
-    await post("/auth/logout");
-  } catch {
-    // Even if the call fails, the local token is going away — a user asking to
-    // sign out must end up signed out.
-  }
-  clearSession();
+  writeJSON(KEYS.session, null);
   return { ok: true };
 }
 
-/** Edit own profile. Returns the updated public user. */
-export async function updateOwnProfile(userId, patchBody) {
-  try {
-    return await patch("/auth/me", patchBody);
-  } catch (err) {
-    throw toAuthError(err);
+/** Part 17 — edit own profile. Returns the updated public user. */
+export async function updateOwnProfile(userId, patch) {
+  const table = userTable();
+  const user = table.find((u) => u.id === userId);
+  if (!user) throw new AuthError("Account not found");
+
+  if (patch.email) {
+    const problem = validateEmail(patch.email);
+    if (problem) throw new AuthError(problem, "email");
+    const clash = findStoredUser(patch.email);
+    if (clash && clash.id !== userId) throw new AuthError("That email is already in use", "email");
   }
+
+  Object.assign(user, patch);
+  writeJSON(KEYS.users, table);
+  return toPublicUser(user);
 }
 
-/**
- * Change password. The server revokes every other session and re-issues this
- * one, so the response carries a fresh session worth persisting.
- */
+/** Mock password change. A real flow posts to the backend and rotates tokens. */
 export async function changePassword(userId, current, next) {
+  const table = userTable();
+  const user = table.find((u) => u.id === userId);
+  if (!user) throw new AuthError("Account not found");
+
+  const ok = await verifyPassword(current, user.salt, user.passwordHash);
+  if (!ok) throw new AuthError("Current password is incorrect", "current");
+
   const problem = validatePassword(next);
   if (problem) throw new AuthError(problem, "next");
 
-  try {
-    const result = await post("/auth/change-password", { current, next });
-    if (result?.session) saveSession(result.session);
-    return { ok: true };
-  } catch (err) {
-    throw toAuthError(err);
-  }
-}
-
-/** Whether this browser already holds a token (used to skip the login screen). */
-export function hasStoredSession() {
-  return Boolean(getSession()?.token);
+  user.salt = makeSalt();
+  user.passwordHash = await hashPassword(next, user.salt);
+  writeJSON(KEYS.users, table);
+  saveSession(buildSession(user));
+  return { ok: true };
 }
 
 /** Sample accounts shown on the sign-in screen, clearly labelled as samples. */

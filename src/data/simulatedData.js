@@ -16,10 +16,10 @@
  * One bundle is built per elderly profile, which is why two demo users show
  * different heart rates, step counts, medications and alerts.
  */
-import { buildVitals, buildWeek, rnd } from "./careData.js";
-import { decorateProfile, teamFor, CARE_STATUS } from "./demoProfiles.js";
-import { formatPhone } from "../lib/format.js";
-import { demoTimeToDate } from "../lib/time.js";
+import { buildVitals, buildWeek, rnd } from "./careData";
+import { decorateProfile, teamFor, CARE_STATUS } from "./demoProfiles";
+import { formatPhone } from "../lib/format";
+import { demoTimeToDate } from "../lib/time";
 
 /** Marked on every payload so the UI can be honest about the data source. */
 export const SIMULATED = true;

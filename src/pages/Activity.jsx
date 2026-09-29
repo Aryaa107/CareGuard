@@ -13,20 +13,12 @@ import {
 import { ActivityHeatmap, BarChart, LineChart, RingGauge } from "../components/Charts";
 import { Badge, Button, Card, Modal, ProgressBar, Segmented } from "../components/UI";
 import { useCare } from "../context/careContext";
+import { activityTimeline, vitals, weekMood, weekSleep, weekSteps } from "../data/careData";
 
 const goals = { steps: 8000, active: 30, sleep: 8 };
 
 export default function Activity() {
-  const {
-    live,
-    pushToast,
-    settings,
-    vitals,
-    weekSteps,
-    weekSleep,
-    weekMood,
-    activityTimeline,
-  } = useCare();
+  const { live, pushToast, settings } = useCare();
   const [range, setRange] = useState("week");
   const [fallOpen, setFallOpen] = useState(false);
   const [simCount, setSimCount] = useState(3);

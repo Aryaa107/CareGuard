@@ -13,19 +13,10 @@ import {
 import { Badge, Button, ProgressBar } from "../components/UI";
 import useClock from "../hooks/useClock";
 import { useCare } from "../context/careContext";
+import { senior } from "../data/careData";
 
 export default function SeniorMode({ onLogout }) {
-  const {
-    live,
-    medications,
-    medsTaken,
-    nextMed,
-    markMedication,
-    startSos,
-    pushToast,
-    settings,
-    senior,
-  } = useCare();
+  const { live, medications, medsTaken, nextMed, markMedication, startSos, pushToast, settings } = useCare();
   const now = useClock();
   const [spoke, setSpoke] = useState("");
 
@@ -61,14 +52,10 @@ export default function SeniorMode({ onLogout }) {
         <div className="sh-greet">
           <Sun size={34} />
           <h2>
-            Good {partOfDay}, {senior?.shortName || senior?.name || "there"}
+            Good {partOfDay}, {senior.shortName}
           </h2>
           <p>You are safe at home. Here is your day.</p>
         </div>
-
-        <button className="sh-signout" onClick={onLogout}>
-          Sign out
-        </button>
       </div>
 
       <div className="big-actions">

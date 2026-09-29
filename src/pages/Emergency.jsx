@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge, Button, Card, DetailRow, Modal, Toggle } from "../components/UI";
 import { useCare } from "../context/careContext";
+import { emergencyContacts, medicalProfile } from "../data/careData";
 
 const incidents = [
   {
@@ -53,16 +54,7 @@ const incidents = [
 ];
 
 export default function Emergency() {
-  const {
-    senior,
-    sosState,
-    startSos,
-    settings,
-    updateSetting,
-    pushToast,
-    emergencyContacts,
-    medicalProfile,
-  } = useCare();
+  const { senior, sosState, startSos, settings, updateSetting, pushToast } = useCare();
   const [profileOpen, setProfileOpen] = useState(false);
 
   return (

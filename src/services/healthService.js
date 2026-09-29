@@ -1,80 +1,115 @@
 /**
- * HEALTH GATEWAY SERVICE — talks to the CareGuard API.
+ * HEALTH GATEWAY SERVICE — all readings here are SIMULATED.
  *
  * ┌────────────────────────────────────────────────────────────────────────┐
- * │ CareGuard is NOT connected to any medical device. CareBand is NOT       │
- * │ compatible with any real device. The values the API returns from the   │
- * │ device stream are SIMULATED and must never be presented as measured    │
- * │ values or as medical advice. Only a reading a person typed in is real  │
- * │ user input, and those are the only ones stored.                        │
+ * │ CareGuard is NOT connected to any medical device in this build. No     │
+ * │ heart-rate monitor, pulse oximeter or thermometer feeds this app, and  │
+ * │ nothing here should be presented as a real measurement or as medical   │
+ * │ advice.                                                                │
  * │                                                                        │
- * │ Replacing the simulated stream with a real gateway means changing the  │
- * │ server route, not this module.                                        │
+ * │ This module exists so the future integration point is obvious: replace │
+ * │ the bodies with `fetch("/api/v1/elderly/{id}/latest")` or a websocket  │
+ * │ subscription. The returned object shape is the contract.               │
  * └────────────────────────────────────────────────────────────────────────┘
  */
-import { get, post, del, seg, ApiError } from "../lib/api";
+import { readJSON, writeJSON, KEYS } from "./storageService";
+import { findProfileById } from "../data/demoProfiles";
+import { buildVitals, DEFAULT_BASELINE } from "../data/careData";
+import { SIMULATED } from "../data/simulatedData";
 
-/**
- * Re-exported from the shared module so the client and the server classify a
- * reading the same way. See lib/vitals.js.
- */
-export { RANGES, classify } from "../lib/vitals.js";
+/** Thresholds drive alert severity. Tuned for a resting adult, demo use only. */
+export const RANGES = {
+  heartRate: { low: 50, high: 110, unit: "BPM" },
+  bloodOxygen: { low: 94, high: 100, unit: "%" },
+  bodyTemperature: { low: 35.8, high: 37.6, unit: "°C" },
+  systolic: { low: 100, high: 140, unit: "mmHg" },
+  diastolic: { low: 60, high: 90, unit: "mmHg" },
+};
 
-function rethrow(err) {
-  if (err instanceof ApiError) {
-    const wrapped = new Error(err.message);
-    wrapped.name = err.name;
-    wrapped.code = err.status || err.code || null;
-    throw wrapped;
-  }
-  throw err;
+export function classify(metric, value) {
+  const r = RANGES[metric];
+  if (!r || value == null) return "unknown";
+  if (value < r.low) return "low";
+  if (value > r.high) return "high";
+  return "normal";
 }
 
-/** Latest device reading. Rejects with `code: 404` for an unknown profile. */
+/**
+ * Latest reading for one elderly profile.
+ *
+ * Returns `simulated: true` alongside every payload so the UI can keep saying
+ * so out loud, and `source: "mock"` so a later device integration can be
+ * feature-detected rather than guessed.
+ */
 export async function fetchLatestReading(elderlyUserId) {
-  try {
-    return await get(`/health/elderly/${seg(elderlyUserId)}/latest`);
-  } catch (err) {
-    rethrow(err);
-  }
+  const profile = findProfileById(elderlyUserId);
+  if (!profile) throw Object.assign(new Error("Unknown elderly profile"), { code: 404 });
+
+  const sim = profile.sim || {};
+  const vitals = buildVitals(sim.seed || 4271, { ...DEFAULT_BASELINE, ...sim });
+  const last = (a) => a[a.length - 1];
+
+  const reading = {
+    elderlyUserId,
+    simulated: SIMULATED,
+    source: "mock",
+    measuredAt: new Date().toISOString(),
+    device: { ...profile.device },
+    heartRate: last(vitals.hr),
+    bloodOxygen: last(vitals.spo2),
+    bodyTemperature: last(vitals.temp),
+    systolic: last(vitals.sys),
+    diastolic: last(vitals.dia),
+    bloodPressure: `${last(vitals.sys)}/${last(vitals.dia)}`,
+    steps: vitals.steps.reduce((a, b) => a + b, 0),
+    glucose: sim.glucose ?? null,
+  };
+
+  reading.flags = {
+    heartRate: classify("heartRate", reading.heartRate),
+    bloodOxygen: classify("bloodOxygen", reading.bloodOxygen),
+    bodyTemperature: classify("bodyTemperature", reading.bodyTemperature),
+    bloodPressure:
+      classify("systolic", last(vitals.sys)) === "normal" && classify("diastolic", last(vitals.dia)) === "normal"
+        ? "normal"
+        : "attention",
+  };
+
+  return reading;
 }
 
 /** 24h series for the charts, in the profile's own baselines. */
 export async function fetchVitalSeries(elderlyUserId) {
-  try {
-    return await get(`/health/elderly/${seg(elderlyUserId)}/series`);
-  } catch (err) {
-    rethrow(err);
-  }
+  const profile = findProfileById(elderlyUserId);
+  if (!profile) throw Object.assign(new Error("Unknown elderly profile"), { code: 404 });
+  const sim = profile.sim || {};
+  return {
+    simulated: SIMULATED,
+    series: buildVitals(sim.seed || 4271, { ...DEFAULT_BASELINE, ...sim }),
+  };
 }
 
 /**
- * Manual entry from the elderly-side app. The server computes the severity
- * flags rather than trusting whatever the client sent.
+ * Manual entry from the elderly-side app. Stored locally; a real deployment
+ * POSTs to the backend and lets the server decide whether it trips an alert.
  */
 export async function submitManualReading(elderlyUserId, reading) {
-  try {
-    return await post(`/health/elderly/${seg(elderlyUserId)}/readings`, reading);
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.incidents, {}) || {};
+  const key = `readings.${elderlyUserId}`;
+  const list = Array.isArray(all[key]) ? all[key] : [];
+  const entry = {
+    ...reading,
+    id: `rd-${Date.now().toString(36)}`,
+    recordedAt: new Date().toISOString(),
+    simulated: false, // a value a person typed is real user input, not a fixture
+    source: "manual",
+  };
+  all[key] = [entry, ...list].slice(0, 50);
+  writeJSON(KEYS.incidents, all);
+  return entry;
 }
 
-/** Stored manual readings, newest first. */
 export async function fetchManualReadings(elderlyUserId) {
-  try {
-    return await get(`/health/elderly/${seg(elderlyUserId)}/readings`);
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-export async function deleteManualReading(elderlyUserId, readingId) {
-  try {
-    return await del(
-      `/health/elderly/${seg(elderlyUserId)}/readings/${seg(readingId)}`
-    );
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.incidents, {}) || {};
+  return Array.isArray(all[`readings.${elderlyUserId}`]) ? all[`readings.${elderlyUserId}`] : [];
 }

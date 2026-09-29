@@ -1,22 +1,14 @@
 /**
- * Session token storage.
+ * Namespaced persistence wrapper.
  *
- * The ONLY place in the app that touches localStorage.
+ * The ONLY place in the app that talks to localStorage. Swapping in IndexedDB,
+ * an offline queue, or removing persistence entirely (once a real session API
+ * exists) happens here without touching the services or components.
  *
- * It now holds exactly one thing: the opaque session token returned by the
- * API. That is the only state a browser needs to keep — every other record
- * lives in MongoDB and is fetched over the network.
- *
- * The token is deliberately NOT the account. It is a random server-issued
- * string that is meaningless on its own: the server matches it against the
- * `sessions` collection to decide who the caller is. A user who clears storage
- * simply signs in again.
- *
- * Reads are defensive: private-browsing mode and blocked storage both degrade
- * to an in-memory store so the app still runs for the current tab.
+ * Every read is defensive: private-browsing mode and disabled storage both
+ * degrade to an in-memory map so the app never crashes on a read.
  */
 const NAMESPACE = "careguard.v1.";
-const SESSION_KEY = `${NAMESPACE}session`;
 
 /** Fallback when storage is unavailable (Safari private mode, blocked cookies). */
 const memory = new Map();
@@ -34,78 +26,59 @@ function backend() {
 
 const store = backend();
 
-function readRaw(key) {
+function key(name) {
+  return `${NAMESPACE}${name}`;
+}
+
+export function readJSON(name, fallback = null) {
   try {
-    return store ? store.getItem(key) : memory.get(key);
+    const raw = store ? store.getItem(key(name)) : memory.get(key(name));
+    if (raw == null) return fallback;
+    return JSON.parse(raw);
   } catch {
-    return memory.get(key);
+    return fallback;
   }
 }
 
-function writeRaw(key, value) {
+export function writeJSON(name, value) {
+  const raw = JSON.stringify(value);
   try {
-    if (store) store.setItem(key, value);
-    else memory.set(key, value);
+    if (store) store.setItem(key(name), raw);
+    else memory.set(key(name), raw);
     return true;
   } catch {
-    // Quota or private-mode failure: keep it for this tab at least.
-    memory.set(key, value);
+    memory.set(key(name), raw);
     return false;
   }
 }
 
-/**
- * The stored session `{ token, userId, issuedAt, expiresAt }`, or null.
- * Anything unparseable is treated as "no session" rather than crashing.
- */
-export function getSession() {
-  const raw = readRaw(SESSION_KEY);
-  if (!raw) return null;
+export function remove(name) {
   try {
-    const parsed = JSON.parse(raw);
-    if (!parsed?.token) return null;
-    // The client checks the clock too, so an expired token is never sent.
-    if (parsed.expiresAt && new Date(parsed.expiresAt).getTime() < Date.now()) {
-      clearSession();
-      return null;
-    }
-    return parsed;
+    if (store) store.removeItem(key(name));
+    else memory.delete(key(name));
   } catch {
-    clearSession();
-    return null;
+    memory.delete(key(name));
   }
 }
 
-export function saveSession(session) {
-  if (!session?.token) return false;
-  return writeRaw(SESSION_KEY, JSON.stringify(session));
-}
-
-export function clearSession() {
-  try {
-    if (store) store.removeItem(SESSION_KEY);
-  } catch {
-    /* ignore */
-  }
-  memory.delete(SESSION_KEY);
-}
-
-/** Just the bearer token, or null. Used by the API client. */
-export function getSessionToken() {
-  return getSession()?.token ?? null;
-}
-
-/** True when the token genuinely survives a reload — shown honestly in Settings. */
+/** True when data genuinely survives a reload — shown honestly in Settings. */
 export function isPersistent() {
   return Boolean(store);
 }
 
 /** Wipe every CareGuard key. Used by the Settings "reset local data" action. */
 export function clearAll() {
-  clearSession();
+  Object.values(KEYS).forEach(remove);
   if (!store) memory.clear();
 }
 
 export const KEYS = {
-  session: SESSION_KEY,
+  session: "session",
+  users: "users",
+  profiles: "profiles",
+  relationships: "relationships",
+  medications: "medications",
+  privacy: "privacy",
+  incidents: "incidents",
+  settings: "settings",
 };

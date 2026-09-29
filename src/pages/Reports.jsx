@@ -14,6 +14,16 @@ import {
 import { BarChart, DonutChart, LineChart, MiniBars, RingGauge } from "../components/Charts";
 import { Badge, Button, Card, ProgressBar, Segmented } from "../components/UI";
 import { useCare } from "../context/careContext";
+import {
+  adherence,
+  bpTrend,
+  heartTrend,
+  vitals,
+  weekMood,
+  weekSleep,
+  weekSteps,
+  weeklyReport,
+} from "../data/careData";
 
 const rangeOptions = [
   { id: "week", label: "7 Days" },
@@ -73,17 +83,7 @@ const insights = [
 ];
 
 export default function Reports() {
-  const {
-    pushToast,
-    adherence,
-    bpTrend,
-    heartTrend,
-    vitals,
-    weekMood,
-    weekSleep,
-    weekSteps,
-    weeklyReport,
-  } = useCare();
+  const { pushToast } = useCare();
   const [range, setRange] = useState("week");
 
   return (

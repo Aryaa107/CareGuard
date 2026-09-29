@@ -4,7 +4,6 @@ import {
   FileBarChart,
   HeartPulse,
   LayoutDashboard,
-  LogOut,
   MapPin,
   Phone,
   Pill,
@@ -17,7 +16,6 @@ import {
 } from "lucide-react";
 import { navGroups } from "../data/careData";
 import { useCare } from "../context/careContext";
-import { useAuth } from "../context/authContext";
 
 const iconMap = {
   LayoutDashboard,
@@ -36,7 +34,6 @@ const utilityItems = [{ id: "settings", label: "Settings", icon: SettingsIcon }]
 
 export default function Sidebar() {
   const { activePage, navigate, sidebarOpen, setSidebarOpen, unreadCount, senior, live } = useCare();
-  const { user, signOut } = useAuth();
 
   const renderItem = (item) => {
     const Icon = iconMap[item.icon] || LayoutDashboard;
@@ -83,9 +80,9 @@ export default function Sidebar() {
         </div>
 
         <div className="senior-chip">
-          <div className="sc-avatar">{senior?.photo || senior?.avatar || "—"}</div>
+          <div className="sc-avatar">{senior.photo}</div>
           <div className="sc-text">
-            <strong>{senior?.shortName || senior?.name || "No one selected"}</strong>
+            <strong>{senior.shortName}</strong>
             <em>
               <i className="live-dot" /> Live · {live.hr} BPM
             </em>
@@ -121,22 +118,13 @@ export default function Sidebar() {
           </div>
 
           <div className="sidebar-user">
-            <div className="user-avatar">{user?.avatar || "—"}</div>
+            <div className="user-avatar">AM</div>
             <div className="su-text">
-              <strong>{user?.name || "Signed out"}</strong>
+              <strong>Aryaa Menon</strong>
               <em>
-                <Phone size={11} />
-                {user?.role === "elderly" ? "Elderly User" : "Primary Caregiver"}
+                <Phone size={11} /> Primary Caregiver
               </em>
             </div>
-            <button
-              className="icon-btn"
-              onClick={signOut}
-              aria-label="Sign out"
-              title="Sign out"
-            >
-              <LogOut size={17} />
-            </button>
           </div>
         </div>
       </aside>

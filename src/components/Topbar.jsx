@@ -14,26 +14,20 @@ import {
 } from "lucide-react";
 import useClock from "../hooks/useClock";
 import { useCare } from "../context/careContext";
-import { useAuth } from "../context/authContext";
 import { Icon } from "./UI";
 
-/**
- * Page titles. Each `sub` may be a function of the signed-in user and the
- * selected profile, so the copy names the actual person being cared for
- * rather than a hardcoded fixture.
- */
 const pageInfo = {
-  overview: { title: "Care Command Center", sub: ({ name }) => (name ? `Everything happening with ${name} right now.` : "Your care dashboard.") },
-  health: { title: "Health Monitor", sub: () => "Vitals, trends and thresholds for every reading." },
-  emergency: { title: "Emergency Center", sub: () => "SOS, medical profile and rapid response." },
-  location: { title: "Live Location", sub: () => "Position, safe zones and visit history." },
-  medications: { title: "Medications", sub: () => "Schedule, adherence and refills." },
-  activity: { title: "Activity & Falls", sub: () => "Movement, sleep and fall detection." },
-  family: { title: "Family Care", sub: () => "Care circle, permissions and shared tasks." },
-  senior: { title: "Senior View", sub: () => "A simple, large-target screen." },
-  alerts: { title: "Alerts & Timeline", sub: () => "Every event, filtered and searchable." },
-  reports: { title: "Reports & Insights", sub: () => "Weekly score, trends and care summary." },
-  settings: { title: "Settings", sub: () => "Accessibility, thresholds and notifications." },
+  overview: { title: "Care Command Center", sub: "Everything happening with Sarala right now." },
+  health: { title: "Health Monitor", sub: "Vitals, trends and thresholds for every reading." },
+  emergency: { title: "Emergency Center", sub: "SOS, medical profile and rapid response." },
+  location: { title: "Live Location", sub: "Position, safe zones and visit history." },
+  medications: { title: "Medications", sub: "Schedule, adherence and refills." },
+  activity: { title: "Activity & Falls", sub: "Movement, sleep and fall detection." },
+  family: { title: "Family Care", sub: "Care circle, permissions and shared tasks." },
+  senior: { title: "Senior View", sub: "A simple, large-target screen made for Sarala." },
+  alerts: { title: "Alerts & Timeline", sub: "Every event, filtered and searchable." },
+  reports: { title: "Reports & Insights", sub: "Weekly score, trends and care summary." },
+  settings: { title: "Settings", sub: "Accessibility, thresholds and notifications." },
 };
 
 export default function Topbar() {
@@ -49,10 +43,7 @@ export default function Topbar() {
     nightMode,
     setNightMode,
     navigate,
-    senior,
   } = useCare();
-
-  const { user } = useAuth();
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -60,9 +51,6 @@ export default function Topbar() {
   const clock = useClock();
 
   const info = pageInfo[activePage] || pageInfo.overview;
-
-  const firstName = user?.name?.split(/\s+/)[0] || "there";
-  const careName = senior?.shortName || senior?.name || null;
 
   const greeting = useMemo(() => {
     if (!clock) return "Hello";
@@ -89,7 +77,7 @@ export default function Topbar() {
       <div className="topbar-title">
         <h1>{info.title}</h1>
         <p>
-          {greeting}, {firstName} — {info.sub({ name: careName, user })}
+          {greeting}, Aryaa — {info.sub}
         </p>
       </div>
 
@@ -225,12 +213,10 @@ export default function Topbar() {
         </div>
 
         <div className="profile">
-          <div className="profile-avatar">{user?.avatar || "—"}</div>
+          <div className="profile-avatar">AM</div>
           <div className="profile-text">
-            <strong>{firstName}</strong>
-            <span>
-              {user?.role === "elderly" ? "Elderly User" : "Primary Caregiver"}
-            </span>
+            <strong>Aryaa</strong>
+            <span>Primary Caregiver</span>
           </div>
         </div>
       </div>

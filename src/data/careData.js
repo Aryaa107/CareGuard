@@ -449,10 +449,6 @@ export const defaultSettings = {
   geofenceAlerts: true,
   fallSensitivity: "Balanced",
   weeklyReports: true,
-  // The daily wellness checklist is the caregiver's own to-do list rather than
-  // anything measured about the person in their care, so it is stored with the
-  // account's other preferences.
-  wellness,
 };
 
 export const navGroups = [

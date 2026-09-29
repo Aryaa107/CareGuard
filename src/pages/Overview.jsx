@@ -31,6 +31,14 @@ import {
 } from "../components/UI";
 import StatCard from "../components/StatCard";
 import { useCare } from "../context/careContext";
+import {
+  activityTimeline,
+  heartTrend,
+  locationHistory,
+  vitals,
+  weekSleep,
+  weeklyReport,
+} from "../data/careData";
 
 const rangeOptions = [
   { id: "day", label: "Today" },
@@ -53,12 +61,6 @@ export default function Overview() {
     navigate,
     startSos,
     pushToast,
-    activityTimeline,
-    heartTrend,
-    locationHistory,
-    vitals,
-    weekSleep,
-    weeklyReport,
   } = useCare();
 
   const [range, setRange] = useState("day");

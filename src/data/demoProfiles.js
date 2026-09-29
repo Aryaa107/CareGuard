@@ -13,7 +13,7 @@
  *   ElderlyProfile   { id, name, age, country, timezone, status, sim, ... }
  *   CareRelationship { caregiverId, elderlyUserId, relationship, isPrimary }
  */
-import { resolveCountry } from "./countries.js";
+import { resolveCountry } from "./countries";
 
 export const ROLES = {
   caregiver: "Caregiver / Family Member",

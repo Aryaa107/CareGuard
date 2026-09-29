@@ -10,6 +10,7 @@ import {
 import { BarChart, LineChart, RangeBar, RingGauge } from "../components/Charts";
 import { Badge, Card, Segmented } from "../components/UI";
 import { useCare } from "../context/careContext";
+import { bpTrend, heartTrend, vitals } from "../data/careData";
 
 const iconMap = {
   hr: HeartPulse,
@@ -20,101 +21,88 @@ const iconMap = {
   weight: Scale,
 };
 
-/**
- * Per-vital descriptor table.
- *
- * Built from the loaded bundle rather than a module constant, so every chart
- * and threshold reflects the selected profile instead of one hardcoded
- * person. Glucose and weight are not part of the simulated device stream, so
- * they fall back to the profile's recorded values.
- */
-function buildMeta({ vitals, heartTrend, bpTrend, snapshot, senior }) {
-  const series = vitals || { labels: [], hr: [], spo2: [], temp: [], sys: [], dia: [] };
-  const last = (arr) => (arr?.length ? arr[arr.length - 1] : 0);
-
-  return {
-    hr: {
-      id: "hr",
-      name: "Heart Rate",
-      unit: "BPM",
-      range: [50, 110],
-      target: [60, 100],
-      value: snapshot?.heartRate ?? last(series.hr),
-      tone: "good",
-      history: series.hr,
-      historyLabels: series.labels,
-      weekly: heartTrend?.series?.[0]?.data ?? [],
-      notes: "Resting average 71 BPM. Slight dip after evening medication.",
-    },
-    spo2: {
-      id: "spo2",
-      name: "Blood Oxygen",
-      unit: "%",
-      range: [92, 100],
-      target: [95, 100],
-      value: snapshot?.bloodOxygen ?? last(series.spo2),
-      tone: "good",
-      history: series.spo2,
-      historyLabels: series.labels,
-      weekly: (series.spo2 || []).filter((_, i) => i % 4 === 0).slice(-7),
-      notes: "Consistently above 96% for the last 14 days.",
-    },
-    temp: {
-      id: "temp",
-      name: "Body Temperature",
-      unit: "°C",
-      range: [35.5, 38],
-      target: [36.1, 37.2],
-      value: snapshot?.bodyTemperature ?? last(series.temp),
-      tone: "good",
-      history: series.temp,
-      historyLabels: series.labels,
-      weekly: (series.temp || []).filter((_, i) => i % 4 === 0).slice(-7),
-      notes: "No fever pattern detected. Baseline stable.",
-    },
-    bp: {
-      id: "bp",
-      name: "Blood Pressure",
-      unit: "mmHg",
-      range: [80, 150],
-      target: [90, 130],
-      value: snapshot?.systolic ?? last(series.sys),
-      tone: "good",
-      history: series.sys,
-      historyLabels: series.labels,
-      weekly: bpTrend?.series?.[0]?.data ?? [],
-      notes: "Systolic averaged 118 mmHg. Within target on 6 of 7 days.",
-    },
-    glucose: {
-      id: "glucose",
-      name: "Blood Sugar",
-      unit: "mg/dL",
-      range: [70, 200],
-      target: [80, 140],
-      value: snapshot?.glucose ?? 112,
-      tone: "warn",
-      history: [98, 105, 168, 142, 126, 118, 112, 104, 99, 121, 158, 140, 131, 124],
-      historyLabels: [
-        "6a", "7a", "8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p", "4p", "5p", "6p", "7p",
-      ],
-      weekly: [128, 134, 141, 152, 149, 138, 131],
-      notes: "Post-lunch readings above 150 on 3 of 7 days. Diet review advised.",
-    },
-    weight: {
-      id: "weight",
-      name: "Weight",
-      unit: "kg",
-      range: [45, 70],
-      target: [55, 62],
-      value: senior?.weight ?? 58,
-      tone: "info",
-      history: [58.4, 58.3, 58.2, 58.1, 58.0, 58.1, 58.0],
-      historyLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-      weekly: [58.4, 58.3, 58.2, 58.1, 58.0, 58.1, 58.0],
-      notes: "Stable within 0.4 kg over 7 days. Target range 55 – 62 kg.",
-    },
-  };
-}
+const meta = {
+  hr: {
+    id: "hr",
+    name: "Heart Rate",
+    unit: "BPM",
+    range: [50, 110],
+    target: [60, 100],
+    value: 76,
+    tone: "good",
+    history: vitals.hr,
+    historyLabels: vitals.labels,
+    weekly: heartTrend.series[0].data,
+    notes: "Resting average 71 BPM. Slight dip after evening medication.",
+  },
+  spo2: {
+    id: "spo2",
+    name: "Blood Oxygen",
+    unit: "%",
+    range: [92, 100],
+    target: [95, 100],
+    value: 98,
+    tone: "good",
+    history: vitals.spo2,
+    historyLabels: vitals.labels,
+    weekly: [97, 98, 96, 98, 99, 98, 98],
+    notes: "Consistently above 96% for the last 14 days.",
+  },
+  temp: {
+    id: "temp",
+    name: "Body Temperature",
+    unit: "°C",
+    range: [35.5, 38],
+    target: [36.1, 37.2],
+    value: 36.7,
+    tone: "good",
+    history: vitals.temp,
+    historyLabels: vitals.labels,
+    weekly: [36.6, 36.8, 36.5, 36.7, 36.9, 36.6, 36.7],
+    notes: "No fever pattern detected. Baseline stable.",
+  },
+  bp: {
+    id: "bp",
+    name: "Blood Pressure",
+    unit: "mmHg",
+    range: [80, 150],
+    target: [90, 130],
+    value: 118,
+    tone: "good",
+    history: vitals.sys,
+    historyLabels: vitals.labels,
+    weekly: bpTrend.series[0].data,
+    notes: "Systolic averaged 118 mmHg. Within target on 6 of 7 days.",
+  },
+  glucose: {
+    id: "glucose",
+    name: "Blood Sugar",
+    unit: "mg/dL",
+    range: [70, 200],
+    target: [80, 140],
+    value: 112,
+    tone: "warn",
+    history: [98, 105, 168, 142, 126, 118, 112, 104, 99, 121, 158, 140, 131, 124],
+    historyLabels: [
+      "6a", "7a", "8a", "9a", "10a", "11a", "12p", "1p", "2p", "3p", "4p", "5p", "6p", "7p",
+    ],
+    weekly: [128, 134, 141, 152, 149, 138, 131],
+    notes: "Post-lunch readings above 150 on 3 of 7 days. Diet review advised.",
+  },
+  weight: {
+    id: "weight",
+    name: "Weight",
+    unit: "kg",
+    range: [45, 70],
+    target: [55, 62],
+    value: 58,
+    tone: "info",
+    history: [58.4, 58.3, 58.2, 58.1, 58.0, 58.1, 58.0],
+    historyLabels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    weekly: [58.4, 58.3, 58.2, 58.1, 58.0, 58.1, 58.0],
+    notes: "Stable within 0.4 kg over 7 days. Target range 55 – 62 kg.",
+  },
+};
 
 const order = ["hr", "spo2", "temp", "bp", "glucose", "weight"];
 
@@ -162,14 +150,9 @@ const readings = {
 };
 
 export default function Health() {
-  const { live, vitals, heartTrend, bpTrend, snapshot, senior } = useCare();
+  const { live } = useCare();
   const [selected, setSelected] = useState("hr");
   const [range, setRange] = useState("today");
-
-  const meta = useMemo(
-    () => buildMeta({ vitals, heartTrend, bpTrend, snapshot, senior }),
-    [vitals, heartTrend, bpTrend, snapshot, senior]
-  );
 
   const current = meta[selected];
   const liveValue =

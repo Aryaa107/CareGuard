@@ -1,9 +1,10 @@
 import { Check, Siren, X } from "lucide-react";
 import { useCare } from "../context/careContext";
+import { emergencyContacts } from "../data/careData";
 import { Badge, Button, Modal } from "./UI";
 
 export default function SosDialog() {
-  const { sosState, cancelSos, settings, emergencyContacts } = useCare();
+  const { sosState, cancelSos, settings } = useCare();
 
   const total = Math.max(settings.sosHoldSeconds, 1);
   const progress = `${(sosState.countdown / total) * 360}deg`;

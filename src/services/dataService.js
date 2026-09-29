@@ -2,247 +2,252 @@
  * CARE DATA SERVICE — the API seam.
  *
  * Every component gets its data through here, never by importing a fixture
- * directly. Each function maps one-to-one onto a MongoDB-backed endpoint;
- * the signatures are unchanged from the localStorage prototype, so nothing
- * above this layer had to change.
+ * directly. Today every function resolves from local mock data; when the
+ * FastAPI backend lands only the bodies change (GET /care-circle, GET
+ * /elderly/{id}/bundle, PATCH /privacy/...). Signatures stay the same.
  *
- * Error contract: a 404 from the API is re-thrown as an `Error` with
- * `code: 404`, which is what `fetchCareBundle` callers already check for.
+ * Everything returned is SIMULATED demo content — see data/simulatedData.js.
  */
-import { get, post, patch, del, seg, ApiError } from "../lib/api";
+import { readJSON, writeJSON, KEYS } from "./storageService";
+import {
+  ELDERLY_PROFILES,
+  relationshipsFor,
+  findProfileById,
+  teamFor,
+  defaultPrivacy,
+} from "../data/demoProfiles";
+import { buildCareBundle } from "../data/simulatedData";
 
-/** Preserve the `err.code` contract callers already rely on. */
-function rethrow(err) {
-  if (err instanceof ApiError) {
-    const wrapped = new Error(err.message);
-    wrapped.name = err.name;
-    wrapped.code = err.status || err.code || null;
-    wrapped.field = err.field;
-    throw wrapped;
+/**
+ * Small artificial delay so loading states are real and exercised during the
+ * prototype. Delete once a network call provides genuine latency.
+ */
+function withLatency(value, ms = 220) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(structuredCloneSafe(value)), ms);
+  });
+}
+
+/** Guard against callers mutating the module-level fixtures. */
+function structuredCloneSafe(value) {
+  try {
+    return structuredClone(value);
+  } catch {
+    return JSON.parse(JSON.stringify(value));
   }
-  throw err;
 }
 
 /* ------------------------------------------------------------- care circle */
 
 /**
- * The elderly people this account may see.
+ * The elderly people this account may see (Part 7 "My Care Circle").
  *
- * The server decides this from the caregiver/elderly relationship rows, so a
- * brand new account gets an empty circle and a demo account gets its
- * household. No client-side demo flag is involved any more.
+ * Accounts created through Register start with an EMPTY circle. Demo accounts —
+ * and registrations that explicitly opted into the sample dataset — get the
+ * labelled fixtures from data/demoProfiles.js.
  */
 export async function fetchCareCircle(user) {
-  if (!user) return [];
-  try {
-    return await get("/care/care-circle");
-  } catch (err) {
-    rethrow(err);
-  }
+  if (!user) return withLatency([]);
+
+  const wantsDemo = Boolean(user.demo) || Boolean(user.includeDemoData);
+  if (!wantsDemo) return withLatency([], 320);
+
+  const rows = relationshipsFor(user.id).map((rel) => {
+    const profile = findProfileById(rel.elderlyUserId);
+    if (!profile) return null;
+    return {
+      elderlyUserId: profile.id,
+      name: profile.name,
+      shortName: profile.shortName,
+      avatar: profile.avatar,
+      age: profile.age,
+      relationship: rel.relationship,
+      isPrimary: rel.isPrimary,
+      status: profile.status,
+      country: profile.country,
+      timezone: profile.timezone,
+    };
+  });
+
+  return withLatency(rows.filter(Boolean));
 }
 
-/** Full dashboard payload for one elderly profile. */
+/** Full simulated dashboard payload for one elderly profile (Part 11/12). */
 export async function fetchCareBundle(elderlyUserId) {
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/bundle`);
-  } catch (err) {
-    rethrow(err);
+  const profile = findProfileById(elderlyUserId);
+  if (!profile) {
+    const err = new Error("Elderly profile not found");
+    err.code = 404;
+    throw err;
   }
+  return withLatency(buildCareBundle(profile));
 }
 
 /* --------------------------------------------------------- elderly profile */
 
-export async function fetchElderlyProfile(elderlyUserId) {
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/profile`);
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404) return null;
-    rethrow(err);
-  }
+/** Saved edits layered over the demo fixture so profile edits survive reloads. */
+function profileOverrides() {
+  return readJSON(KEYS.profiles, {}) || {};
 }
 
-/** Merge-patch the profile. Only the fields present in `patch` change. */
+export async function fetchElderlyProfile(elderlyUserId) {
+  const base = findProfileById(elderlyUserId);
+  if (!base) return withLatency(null);
+  return withLatency({ ...base, ...(profileOverrides()[elderlyUserId] || {}) });
+}
+
 export async function saveElderlyProfile(elderlyUserId, patch) {
-  try {
-    return await patch(`/care/elderly/${seg(elderlyUserId)}/profile`, patch);
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = profileOverrides();
+  all[elderlyUserId] = { ...(all[elderlyUserId] || {}), ...patch };
+  writeJSON(KEYS.profiles, all);
+  const base = findProfileById(elderlyUserId);
+  return withLatency({ ...base, ...all[elderlyUserId] }, 180);
 }
 
 /* -------------------------------------------------------------- medication */
 
 /**
- * The medication schedule for a profile.
- *
- * The old prototype needed a `seedList` argument to fall back on; the
- * parameter is still accepted but ignored, because the server is now the
- * single source of truth for the schedule.
+ * Medication CRUD. The simulated bundle seeds the list; user edits are stored
+ * as a per-profile override so the schedule persists across reloads.
  */
-export async function fetchMedications(elderlyUserId, seedList) {
-  void seedList;
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/medications`);
-  } catch (err) {
-    rethrow(err);
-  }
+function medOverrides() {
+  return readJSON(KEYS.medications, {}) || {};
 }
 
-/** Upsert one medication. A body with no `id` creates a new row. */
+export async function fetchMedications(elderlyUserId, seedList) {
+  const saved = medOverrides()[elderlyUserId];
+  return withLatency(Array.isArray(saved) ? saved : structuredCloneSafe(seedList), 160);
+}
+
 export async function saveMedication(elderlyUserId, med) {
-  try {
-    return await post(`/care/elderly/${seg(elderlyUserId)}/medications`, med);
-  } catch (err) {
-    rethrow(err);
+  const all = medOverrides();
+  const list = Array.isArray(all[elderlyUserId]) ? all[elderlyUserId] : [];
+
+  if (med.id) {
+    const idx = list.findIndex((m) => m.id === med.id);
+    if (idx >= 0) list[idx] = { ...list[idx], ...med };
+    else list.push(med);
+  } else {
+    list.push({ ...med, id: Date.now() });
   }
+
+  all[elderlyUserId] = list;
+  writeJSON(KEYS.medications, all);
+  return withLatency(list, 160);
 }
 
 export async function deleteMedication(elderlyUserId, medId) {
-  try {
-    return await del(
-      `/care/elderly/${seg(elderlyUserId)}/medications/${seg(medId)}`
-    );
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = medOverrides();
+  const list = Array.isArray(all[elderlyUserId]) ? all[elderlyUserId] : [];
+  all[elderlyUserId] = list.filter((m) => m.id !== medId);
+  writeJSON(KEYS.medications, all);
+  return withLatency(all[elderlyUserId], 160);
 }
 
 /* ---------------------------------------------------------------- privacy */
 
 /**
- * Privacy consent record. New profiles start at "emergency-only" location
- * sharing — never full live tracking without an explicit opt-in.
+ * Privacy consent record (Part 16). New profiles start at "emergency-only"
+ * location sharing — never full live tracking by default.
  */
 export async function fetchPrivacy(elderlyUserId) {
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/privacy`);
-  } catch (err) {
-    rethrow(err);
-  }
+  const saved = readJSON(KEYS.privacy, {}) || {};
+  return withLatency(saved[elderlyUserId] || defaultPrivacy(elderlyUserId), 140);
 }
 
-export async function savePrivacy(elderlyUserId, patchBody) {
-  try {
-    return await patch(`/care/elderly/${seg(elderlyUserId)}/privacy`, patchBody);
-  } catch (err) {
-    rethrow(err);
-  }
+export async function savePrivacy(elderlyUserId, patch) {
+  const all = readJSON(KEYS.privacy, {}) || {};
+  const next = { ...(all[elderlyUserId] || defaultPrivacy(elderlyUserId)), ...patch, elderlyUserId };
+  all[elderlyUserId] = next;
+  writeJSON(KEYS.privacy, all);
+  return withLatency(next, 160);
 }
 
-/* -------------------------------------------------------------- care team */
+/* ------------------------------------------------------------ care team */
 
+/**
+ * Care team for one elderly profile (Part 13). Demo rosters can be extended and
+ * trimmed; changes persist locally.
+ */
 export async function fetchCareTeam(elderlyUserId) {
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/care-team`);
-  } catch (err) {
-    rethrow(err);
-  }
+  const saved = readJSON(KEYS.relationships, {}) || {};
+  const override = saved[elderlyUserId];
+  return withLatency(Array.isArray(override) ? override : teamFor(elderlyUserId), 160);
 }
 
-/** Invite someone. They land as `pending` until they accept. */
 export async function addCaregiver(elderlyUserId, member) {
-  try {
-    return await post(`/care/elderly/${seg(elderlyUserId)}/care-team`, member);
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.relationships, {}) || {};
+  const base = Array.isArray(all[elderlyUserId]) ? all[elderlyUserId] : teamFor(elderlyUserId);
+  const next = [
+    ...base,
+    {
+      name: member.name,
+      relation: member.relation || "Family",
+      role: member.role || "Co-caregiver",
+      access: member.access?.length ? member.access : ["SOS"],
+      status: "offline",
+      lastSeen: "Just invited",
+      phone: member.phone || "",
+      avatar: member.name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((w) => w[0].toUpperCase())
+        .join(""),
+      pending: true,
+    },
+  ];
+  all[elderlyUserId] = next;
+  writeJSON(KEYS.relationships, all);
+  return withLatency(next, 200);
 }
 
 export async function removeCaregiver(elderlyUserId, name) {
-  try {
-    return await del(
-      `/care/elderly/${seg(elderlyUserId)}/care-team/${seg(name)}`
-    );
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.relationships, {}) || {};
+  const base = Array.isArray(all[elderlyUserId]) ? all[elderlyUserId] : teamFor(elderlyUserId);
+  const next = base.filter((m) => m.name !== name);
+  all[elderlyUserId] = next;
+  writeJSON(KEYS.relationships, all);
+  return withLatency(next, 160);
 }
 
-/** The permission matrix write. */
+/** Permission matrix write (Part 14). */
 export async function updatePermissions(elderlyUserId, memberName, access) {
-  try {
-    return await patch(
-      `/care/elderly/${seg(elderlyUserId)}/care-team/${seg(memberName)}`,
-      { access }
-    );
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-/* ------------------------------------------------------------------ alerts */
-
-export async function fetchAlerts(elderlyUserId) {
-  try {
-    return await get(`/care/elderly/${seg(elderlyUserId)}/alerts`);
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-/** Create an alert — used by the SOS flow. */
-export async function createAlert(elderlyUserId, alert) {
-  try {
-    return await post(`/care/elderly/${seg(elderlyUserId)}/alerts`, alert);
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-export async function markAlertRead(elderlyUserId, alertId, read = true) {
-  try {
-    return await patch(
-      `/care/elderly/${seg(elderlyUserId)}/alerts/${seg(alertId)}`,
-      { read }
-    );
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-export async function markAllAlertsRead(elderlyUserId) {
-  try {
-    return await post(`/care/elderly/${seg(elderlyUserId)}/alerts/read-all`);
-  } catch (err) {
-    rethrow(err);
-  }
-}
-
-export async function clearAlert(elderlyUserId, alertId) {
-  try {
-    return await del(`/care/elderly/${seg(elderlyUserId)}/alerts/${seg(alertId)}`);
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.relationships, {}) || {};
+  const base = Array.isArray(all[elderlyUserId]) ? all[elderlyUserId] : teamFor(elderlyUserId);
+  const next = base.map((m) => (m.name === memberName ? { ...m, access } : m));
+  all[elderlyUserId] = next;
+  writeJSON(KEYS.relationships, all);
+  return withLatency(next, 140);
 }
 
 /* --------------------------------------------------------------- settings */
 
-/** UI preferences. Null when the account has never saved any. */
+/** UI preferences (units, alerts, accessibility) persisted per browser. */
 export async function fetchSettings(userId) {
-  void userId;
-  try {
-    return await get("/care/settings");
-  } catch (err) {
-    rethrow(err);
-  }
+  const all = readJSON(KEYS.settings, {}) || {};
+  return withLatency(all[userId] || null, 120);
 }
 
-export async function saveSettings(userId, patchBody) {
-  void userId;
-  try {
-    return await patch("/care/settings", patchBody);
-  } catch (err) {
-    rethrow(err);
-  }
+export async function saveSettings(userId, patch) {
+  const all = readJSON(KEYS.settings, {}) || {};
+  const next = { ...(all[userId] || {}), ...patch };
+  all[userId] = next;
+  writeJSON(KEYS.settings, all);
+  return withLatency(next, 120);
 }
 
 /* ---------------------------------------------------------- demo plumbing */
 
+/** Whether a given demo profile exists — used to gate the empty-state screen. */
+export function knownProfileIds() {
+  return ELDERLY_PROFILES.map((p) => p.id);
+}
+
 /**
  * Placeholder bundle for an elderly person added through the UI. It has no
  * vitals at all on purpose: a person added locally is not wired to any device,
- * and inventing readings for them would be misleading.
+ * and inventing readings for them would be misleading (Part 11).
  */
 export function pendingSetupBundle(name) {
   return {

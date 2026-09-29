@@ -8,6 +8,7 @@ import {
   Lock,
   Phone,
   Globe,
+  FileText,
 } from "lucide-react";
 import { COUNTRIES } from "../data/countries";
 
@@ -48,7 +49,7 @@ function validateField(name, value, form) {
   }
 }
 
-export default function Register({ onSubmit, onBackToLogin }) {
+export default function Register({ onRegistered, onBackToLogin }) {
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -63,7 +64,7 @@ export default function Register({ onSubmit, onBackToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState("");
+  const [registered, setRegistered] = useState(null);
 
   const updateField = (name, value) => {
     setForm((f) => ({ ...f, [name]: value }));
@@ -83,37 +84,53 @@ export default function Register({ onSubmit, onBackToLogin }) {
     return ok;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!validateAll()) return;
-
-    setServerError("");
     setSubmitting(true);
-
-    // The password goes straight to the API and is never stored in component
-    // state beyond this call. On success the app is already signed in, so this
-    // component unmounts and the success card below is never shown.
-    try {
-      await onSubmit({
+    setTimeout(() => {
+      setSubmitting(false);
+      const account = {
+        id: `demo-${Date.now().toString(36)}`,
         name: form.fullName.trim(),
         email: form.email.trim().toLowerCase(),
         password: form.password,
-        confirmPassword: form.confirmPassword,
         country: form.country,
+        countryName: COUNTRIES.find((c) => c.code === form.country)?.name || "",
         phone: form.phone.trim(),
         role: form.role,
-        includeDemoData: false,
-      });
-    } catch (err) {
-      setServerError(err?.message || "Could not create your account.");
-      if (err?.field) setErrors((e) => ({ ...e, [err.field]: err.message }));
-    } finally {
-      setSubmitting(false);
-    }
+        createdAt: new Date().toISOString(),
+        demo: true,
+      };
+      setRegistered(account);
+      onRegistered(account);
+    }, 400);
   };
 
   const showFieldError = (field) =>
     errors[field] ? <span className="cg-field-error">{errors[field]}</span> : null;
+
+  const successCard = () => (
+    <div className="cg-register-success">
+      <div className="cg-register-success-icon">
+        <ShieldCheck size={32} />
+      </div>
+      <h2 className="cg-register-success-title">Account created</h2>
+      <p className="cg-register-success-msg">
+        Demo account successfully created. You can now sign in with the email
+        and password you just registered. This account is stored in memory for
+        this session only and is cleared on refresh.
+      </p>
+      <div className="cg-register-success-summary">
+        <FileText size={16} />
+        <span className="cg-register-summary-name">{registered.name}</span>
+        <span className="cg-register-summary-email">{registered.email}</span>
+      </div>
+      <button type="button" className="cg-login-submit" onClick={onBackToLogin}>
+        Sign in
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -414,13 +431,10 @@ export default function Register({ onSubmit, onBackToLogin }) {
             <p>Create your account</p>
           </div>
 
-          {serverError && (
-            <div className="cg-field-error cg-form-error" role="alert">
-              {serverError}
-            </div>
-          )}
+          {registered ? successCard() : null}
 
-          <form onSubmit={handleSubmit} noValidate>
+          {!registered && (
+            <form onSubmit={handleSubmit} noValidate>
               <div className="cg-register-field">
                 <label htmlFor="cg-fullName">Full Name *</label>
                 <div className="cg-input-wrap">
@@ -646,8 +660,9 @@ export default function Register({ onSubmit, onBackToLogin }) {
                 {submitting ? "Creating account…" : "Create account"}
               </button>
             </form>
+          )}
 
-          {!submitting && (
+          {!registered && !submitting && (
             <div className="cg-register-footer">
               Already have an account?{" "}
               <span
